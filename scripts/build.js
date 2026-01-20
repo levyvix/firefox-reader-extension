@@ -133,6 +133,14 @@ checkBrowsers(paths.appPath, isInteractive)
           console.log(chalk.green('✓ Copied Firefox index.js'));
         }
 
+        // Copy main.css from Chrome extension
+        const cssSrc = path.join(chromeExtensionDir, 'main.css');
+        const cssDest = path.join(outputDir, 'main.css');
+        if (fs.existsSync(cssSrc)) {
+          fs.copySync(cssSrc, cssDest);
+          console.log(chalk.green('✓ Copied Firefox main.css'));
+        }
+
         // Copy images directory from Chrome extension
         const imagesSrc = path.join(chromeExtensionDir, 'images');
         const imagesDest = path.join(outputDir, 'images');
