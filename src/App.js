@@ -31,7 +31,11 @@ class App extends Component {
       var documentClone = document.cloneNode(true);
       console.log('[Reader] Document cloned');
 
-      var article = new Readability(documentClone).parse();
+      var reader = new Readability(documentClone);
+      // Disable aggressive content cleaning to preserve photo captions,
+      // figure elements, and trailing paragraphs that may be incorrectly removed
+      reader._removeFlag(reader.FLAG_CLEAN_CONDITIONALLY);
+      var article = reader.parse();
       console.log('[Reader] Readability parse completed:', article);
 
       if (!article) {
