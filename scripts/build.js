@@ -48,6 +48,15 @@ if (!checkRequiredFiles([paths.appHtml, paths.appIndexJs])) {
 const argv = process.argv.slice(2);
 const writeStatsJson = argv.indexOf('--stats') !== -1;
 
+// Detect browser target
+const browserTarget = process.env.BROWSER || 'chrome';
+const isFirefox = browserTarget === 'firefox';
+const buildDir = isFirefox ? 'extension-firefox' : 'build';
+
+if (isFirefox) {
+  console.log(chalk.cyan(`Building for Firefox target...\n`));
+}
+
 // We require that you explicitly set browsers and do not fall back to
 // browserslist defaults.
 const { checkBrowsers } = require('react-dev-utils/browsersHelper');
@@ -55,12 +64,12 @@ checkBrowsers(paths.appPath, isInteractive)
   .then(() => {
     // First, read the current file sizes in build directory.
     // This lets us display how much they changed later.
-    return measureFileSizesBeforeBuild(paths.appBuild);
+    return measureFileSizesBeforeBuild(path.join(paths.appPath, buildDir));
   })
   .then(previousFileSizes => {
     // Remove all content but keep the directory so that
     // if you're in it, you don't end up in Trash
-    fs.emptyDirSync(paths.appBuild);
+    fs.emptyDirSync(path.join(paths.appPath, buildDir));
     // Merge with the public folder
     copyPublicFolder();
     // Start the webpack build
@@ -86,10 +95,11 @@ checkBrowsers(paths.appPath, isInteractive)
       }
 
       console.log('File sizes after gzip:\n');
+      const outputDir = path.join(paths.appPath, buildDir);
       printFileSizesAfterBuild(
         stats,
         previousFileSizes,
-        paths.appBuild,
+        outputDir,
         WARN_AFTER_BUNDLE_GZIP_SIZE,
         WARN_AFTER_CHUNK_GZIP_SIZE
       );
@@ -98,14 +108,51 @@ checkBrowsers(paths.appPath, isInteractive)
       const appPackage = require(paths.appPackageJson);
       const publicUrl = paths.publicUrl;
       const publicPath = config.output.publicPath;
-      const buildFolder = path.relative(process.cwd(), paths.appBuild);
-      printHostingInstructions(
-        appPackage,
-        publicUrl,
-        publicPath,
-        buildFolder,
-        useYarn
-      );
+      const buildFolder = path.relative(process.cwd(), outputDir);
+
+      // Copy Firefox-specific files after webpack build
+      if (isFirefox) {
+        const chromeExtensionDir = path.join(paths.appPath, 'extension');
+
+        // Copy background.js from Chrome extension
+        const bgJsSrc = path.join(chromeExtensionDir, 'background.js');
+        const bgJsDest = path.join(outputDir, 'background.js');
+        if (fs.existsSync(bgJsSrc)) {
+          // Replace chrome.* with browser.* for Firefox compatibility
+          let bgJsContent = fs.readFileSync(bgJsSrc, 'utf-8');
+          bgJsContent = bgJsContent.replace(/chrome\./g, 'browser.');
+          fs.writeFileSync(bgJsDest, bgJsContent);
+          console.log(chalk.green('✓ Created Firefox background.js'));
+        }
+
+        // Copy index.js from Chrome extension
+        const indexJsSrc = path.join(chromeExtensionDir, 'index.js');
+        const indexJsDest = path.join(outputDir, 'index.js');
+        if (fs.existsSync(indexJsSrc)) {
+          fs.copySync(indexJsSrc, indexJsDest);
+          console.log(chalk.green('✓ Copied Firefox index.js'));
+        }
+
+        // Copy images directory from Chrome extension
+        const imagesSrc = path.join(chromeExtensionDir, 'images');
+        const imagesDest = path.join(outputDir, 'images');
+        if (fs.existsSync(imagesSrc)) {
+          fs.copySync(imagesSrc, imagesDest);
+          console.log(chalk.green('✓ Copied Firefox images'));
+        }
+      }
+
+      if (!isFirefox) {
+        printHostingInstructions(
+          appPackage,
+          publicUrl,
+          publicPath,
+          buildFolder,
+          useYarn
+        );
+      } else {
+        console.log(chalk.green('✓ Firefox extension build complete: ') + chalk.cyan(buildFolder));
+      }
     },
     err => {
       console.log(chalk.red('Failed to compile.\n'));
@@ -182,8 +229,18 @@ function build(previousFileSizes) {
 }
 
 function copyPublicFolder() {
-  fs.copySync(paths.appPublic, paths.appBuild, {
+  const targetDir = path.join(paths.appPath, buildDir);
+  fs.copySync(paths.appPublic, targetDir, {
     dereference: true,
     filter: file => file !== paths.appHtml,
   });
+
+  // Handle Firefox manifest if building for Firefox
+  if (isFirefox) {
+    const firefoxManifestSrc = path.join(paths.appPublic, 'manifest-firefox.json');
+    const manifestDest = path.join(targetDir, 'manifest.json');
+    if (fs.existsSync(firefoxManifestSrc)) {
+      fs.copySync(firefoxManifestSrc, manifestDest);
+    }
+  }
 }

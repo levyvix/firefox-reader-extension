@@ -65,11 +65,16 @@ const resolveModule = (resolveFn, filePath) => {
   return resolveFn(`${filePath}.js`);
 };
 
+// Detect browser target for build output
+const browserTarget = process.env.BROWSER || 'chrome';
+const isFirefox = browserTarget === 'firefox';
+const buildDirName = isFirefox ? 'extension-firefox' : 'build';
+
 // config after eject: we're in ./config/
 module.exports = {
   dotenv: resolveApp('.env'),
   appPath: resolveApp('.'),
-  appBuild: resolveApp('build'),
+  appBuild: resolveApp(buildDirName),
   appPublic: resolveApp('public'),
   appHtml: resolveApp('public/index.html'),
   appIndexJs: resolveModule(resolveApp, 'src/index'),
