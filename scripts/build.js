@@ -148,6 +148,16 @@ checkBrowsers(paths.appPath, isInteractive)
           fs.copySync(imagesSrc, imagesDest);
           console.log(chalk.green('✓ Copied Firefox images'));
         }
+
+        // Copy content.js from Chrome extension
+        const contentJsSrc = path.join(chromeExtensionDir, 'content.js');
+        const contentJsDest = path.join(outputDir, 'content.js');
+        if (fs.existsSync(contentJsSrc)) {
+          let contentJsContent = fs.readFileSync(contentJsSrc, 'utf-8');
+          contentJsContent = contentJsContent.replace(/chrome\./g, 'browser.');
+          fs.writeFileSync(contentJsDest, contentJsContent);
+          console.log(chalk.green('✓ Created Firefox content.js'));
+        }
       }
 
       if (!isFirefox) {

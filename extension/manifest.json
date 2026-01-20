@@ -2,20 +2,30 @@
 	"name": "Reeader - Minimal reader with speed reading",
 	"version": "1.2.0",
 	"description": "A simple and minimal way to read articles faster.",
-  "permissions": ["activeTab", "storage"],
-  "background": {
-    "scripts": ["background.js"],
-    "persistent": false
+  "manifest_version": 3,
+  "permissions": ["scripting", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_icon": {
+      "16": "images/reader16.png",
+      "32": "images/reader32.png",
+      "48": "images/reader48.png",
+      "128": "images/reader128.png"
+    }
   },
-  "browser_action": {},
+  "background": {
+    "service_worker": "background.js"
+  },
   "icons": {
     "16": "images/reader16.png",
     "32": "images/reader32.png",
     "48": "images/reader48.png",
     "128": "images/reader128.png"
   },
-  "manifest_version": 2,
   "web_accessible_resources": [
-    "images/*.png"
+    {
+      "resources": ["images/*"],
+      "matches": ["<all_urls>"]
+    }
   ]
 }

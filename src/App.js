@@ -20,36 +20,94 @@ class App extends Component {
     lineHeight: 1.6,
     fontWeight: 400,
     popupMenu: false,
-    speedReading: false
+    speedReading: false,
+    error: null
   };
 
   componentWillMount() {
-    var documentClone = document.cloneNode(true);
-    var article = new Readability(documentClone).parse();
+    try {
+      console.log('[Reader] Starting componentWillMount');
 
-    this.setState({
-      title: article.title,
-      content: article.content
-    });
+      var documentClone = document.cloneNode(true);
+      console.log('[Reader] Document cloned');
 
-    // load saved values from chrome storage
-    chrome.storage.sync.get(
-      ["theme", "sizeFont", "lineHeight", "fontWeight"],
-      data => {
-        this.setState(state => {
-          return {
-            theme: isNaN(data.theme) ? state.theme : data.theme,
-            sizeFont: isNaN(data.sizeFont) ? state.sizeFont : data.sizeFont,
-            lineHeight: isNaN(data.lineHeight)
-              ? state.lineHeight
-              : data.lineHeight,
-            fontWeight: isNaN(data.fontWeight)
-              ? state.fontWeight
-              : data.fontWeight
-          };
-        });
+      var article = new Readability(documentClone).parse();
+      console.log('[Reader] Readability parse completed:', article);
+
+      if (!article) {
+        throw new Error('Readability parser returned null - could not extract article');
       }
-    );
+
+      this.setState({
+        title: article.title || 'Untitled',
+        content: article.content || 'No content found'
+      });
+
+      console.log('[Reader] Initial state set');
+
+      // load saved values from chrome storage
+      if (chrome && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.get(
+          ["theme", "sizeFont", "lineHeight", "fontWeight"],
+          data => {
+            console.log('[Reader] Storage data retrieved:', data);
+            if (data) {
+              this.setState(state => {
+                return {
+                  theme: isNaN(data.theme) ? state.theme : data.theme,
+                  sizeFont: isNaN(data.sizeFont) ? state.sizeFont : data.sizeFont,
+                  lineHeight: isNaN(data.lineHeight)
+                    ? state.lineHeight
+                    : data.lineHeight,
+                  fontWeight: isNaN(data.fontWeight)
+                    ? state.fontWeight
+                    : data.fontWeight
+                };
+              });
+            } else {
+              console.log('[Reader] No saved settings, using defaults');
+            }
+          }
+        );
+      } else {
+        console.warn('[Reader] chrome.storage.sync not available');
+      }
+    } catch (error) {
+      console.error('[Reader] Error in componentWillMount:', error);
+      this.setState({
+        error: error.message,
+        readerView: false
+      });
+    }
+  }
+
+  componentDidMount() {
+    try {
+      console.log('[Reader] componentDidMount called');
+      // Apply body styles only after React successfully renders
+      const bodyElement = document.getElementsByTagName("body")[0];
+      if (bodyElement) {
+        bodyElement.style.height = '100vh';
+        bodyElement.style.overflow = 'hidden';
+        console.log('[Reader] Body styles applied');
+      }
+    } catch (e) {
+      console.error('[Reader] Error in componentDidMount:', e);
+    }
+  }
+
+  componentWillUnmount() {
+    try {
+      console.log('[Reader] componentWillUnmount called');
+      // Restore body styles when component unmounts
+      const bodyElement = document.getElementsByTagName("body")[0];
+      if (bodyElement) {
+        bodyElement.removeAttribute("style");
+        console.log('[Reader] Body styles removed');
+      }
+    } catch (e) {
+      console.error('[Reader] Error in componentWillUnmount:', e);
+    }
   }
 
   closeReader() {
@@ -155,7 +213,13 @@ class App extends Component {
    * @param {number} theme
    */
   saveTheme(theme) {
-    chrome.storage.sync.set({ theme });
+    try {
+      if (chrome && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.set({ theme });
+      }
+    } catch (e) {
+      console.warn('[Reader] Error saving theme:', e);
+    }
   }
 
   /**
@@ -163,7 +227,13 @@ class App extends Component {
    * @param {number} sizeFont
    */
   saveFont(sizeFont) {
-    chrome.storage.sync.set({ sizeFont });
+    try {
+      if (chrome && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.set({ sizeFont });
+      }
+    } catch (e) {
+      console.warn('[Reader] Error saving font size:', e);
+    }
   }
 
   /**
@@ -171,7 +241,13 @@ class App extends Component {
    * @param {number} lineHeight
    */
   saveLineHeight(lineHeight) {
-    chrome.storage.sync.set({ lineHeight });
+    try {
+      if (chrome && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.set({ lineHeight });
+      }
+    } catch (e) {
+      console.warn('[Reader] Error saving line height:', e);
+    }
   }
 
   /**
@@ -179,10 +255,32 @@ class App extends Component {
    * @param {number} fontWeight
    */
   saveFontWeight(fontWeight) {
-    chrome.storage.sync.set({ fontWeight });
+    try {
+      if (chrome && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.set({ fontWeight });
+      }
+    } catch (e) {
+      console.warn('[Reader] Error saving font weight:', e);
+    }
   }
 
   render() {
+    // Show error if one occurred
+    if (this.state.error) {
+      return (
+        <div className="rr-app theme-white" style={{ padding: '20px', textAlign: 'center' }}>
+          <h2>Error Loading Reader</h2>
+          <p>{this.state.error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ padding: '10px 20px', marginTop: '10px', cursor: 'pointer' }}
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+
     if (this.state.readerView) {
       let activeTheme = "theme-white";
       // if the theme is not white
@@ -190,15 +288,21 @@ class App extends Component {
         activeTheme = this.state.theme === 1 ? "theme-yellow" : "theme-dark";
       }
 
-      const speedIcon =
-        this.state.theme === 2
-          ? chrome.runtime.getURL("images/icon-speed-light.png")
-          : chrome.runtime.getURL("images/icon-speed.png");
+      let speedIcon = "";
+      let moreSpeedIcon = "";
+      try {
+        speedIcon =
+          this.state.theme === 2
+            ? chrome.runtime.getURL("images/icon-speed-light.png")
+            : chrome.runtime.getURL("images/icon-speed.png");
 
-      const moreSpeedIcon =
-        this.state.theme === 2
-          ? chrome.runtime.getURL("images/icon-more-speed-light.png")
-          : chrome.runtime.getURL("images/icon-more-speed.png");
+        moreSpeedIcon =
+          this.state.theme === 2
+            ? chrome.runtime.getURL("images/icon-more-speed-light.png")
+            : chrome.runtime.getURL("images/icon-more-speed.png");
+      } catch (e) {
+        console.warn('[Reader] Error getting runtime URLs:', e);
+      }
 
       return (
         <div
